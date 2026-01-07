@@ -50,13 +50,13 @@ export class TestExecutionHandler {
         } else if (testItem.outcome === 'failure' || testItem.outcome === 'passed-unexpected') {
             this.handleTestFailure(runId, testItem, runInstance, testItemIndex, testController);
         } else if (testItem.outcome === 'success' || testItem.outcome === 'expected-failure') {
-            this.handleTestSuccess(runId, runInstance, testItemIndex, testController);
+            this.handleTestSuccess(runId, testItem, runInstance, testItemIndex, testController);
         } else if (testItem.outcome === 'skipped') {
             this.handleTestSkipped(runId, runInstance, testItemIndex, testController);
         } else if (testItem.outcome === 'subtest-failure') {
             this.handleSubtestFailure(runId, testItem, runInstance, testItemIndex, testController);
         } else if (testItem.outcome === 'subtest-success') {
-            this.handleSubtestSuccess(runId, runInstance, testItemIndex, testController);
+            this.handleSubtestSuccess(runId, testItem, runInstance, testItemIndex, testController);
         }
     }
 
@@ -122,6 +122,7 @@ export class TestExecutionHandler {
      */
     private handleTestSuccess(
         runId: string,
+        testItem: any,
         runInstance: TestRun,
         testItemIndex: TestItemIndex,
         testController: TestController,
@@ -130,6 +131,9 @@ export class TestExecutionHandler {
 
         if (foundItem !== undefined && foundItem.uri) {
             runInstance.passed(foundItem);
+            if (testItem.message != null) {
+                runInstance.appendOutput(testItem.message.replace(/\r?\n|\r/g, '\r\n'), undefined, foundItem);
+            }
         }
     }
 
@@ -199,6 +203,7 @@ export class TestExecutionHandler {
      */
     private handleSubtestSuccess(
         runId: string,
+        testItem: any,
         runInstance: TestRun,
         testItemIndex: TestItemIndex,
         testController: TestController,
@@ -221,6 +226,9 @@ export class TestExecutionHandler {
                 parentTestItem.children.add(subTestItem);
                 runInstance.started(subTestItem);
                 runInstance.passed(subTestItem);
+                if (testItem.message != null) {
+                    runInstance.appendOutput(testItem.message.replace(/\r?\n|\r/g, '\r\n'), undefined, subTestItem);
+                }
             } else {
                 throw new Error('Unable to create new child node for subtest');
             }
