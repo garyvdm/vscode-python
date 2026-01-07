@@ -104,7 +104,7 @@ export class TestExecutionHandler {
             removeEmptyEntries: true,
         }).join('\r\n');
 
-        const text = `${testItem.test} failed: ${testItem.message ?? testItem.outcome}\r\n${traceback}`;
+        const text = `failed: ${testItem.message ?? testItem.outcome}\r\n${traceback}`;
         const message = new TestMessage(text);
 
         const foundItem = testItemIndex.getTestItem(runId, testController);

@@ -10,6 +10,7 @@ import os
 import pathlib
 import sys
 import traceback
+from io import StringIO
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -22,6 +23,8 @@ from typing import (
 )
 
 import pytest
+from _pytest._io.terminalwriter import TerminalWriter
+from _pytest.terminal import TerminalReporter, _get_line_with_reprcrash_message
 
 if TYPE_CHECKING:
     from pluggy import Result
@@ -273,7 +276,7 @@ class TestRunResultDict(Dict[str, Dict[str, TestOutcome]]):
 
 
 @pytest.hookimpl(hookwrapper=True, trylast=True)
-def pytest_report_teststatus(report, config):  # noqa: ARG001
+def pytest_report_teststatus(report: pytest.TestReport, config: pytest.Config):  # noqa: ARG001
     """A pytest hook that is called when a test is called.
 
     It is called 3 times per test, during setup, call, and teardown.
@@ -288,13 +291,12 @@ def pytest_report_teststatus(report, config):  # noqa: ARG001
 
     if report.when == "call" or (report.when == "setup" and report.skipped):
         traceback = None
-        message = None
+        message = get_report_message(report, config)
         report_value = "skipped"
         if report.passed:
             report_value = "success"
         elif report.failed:
             report_value = "failure"
-            message = report.longreprtext
         try:
             node_path = map_id_to_path[report.nodeid]
         except KeyError:
@@ -317,6 +319,47 @@ def pytest_report_teststatus(report, config):  # noqa: ARG001
                 collected_test if collected_test else None,
             )
     yield
+
+
+def get_report_message(report: pytest.TestReport, config: pytest.Config):
+    file = StringIO()
+    tr = TerminalReporter(config, file)
+
+    summary_msg = ""
+    try:
+        if isinstance(report.longrepr, str):
+            summary_msg = report.longrepr
+        else:
+            # Type ignored intentionally -- possible AttributeError expected.
+            summary_msg = report.longrepr.reprcrash.message  # type: ignore[union-attr]
+    except AttributeError:
+        pass
+
+    tr.write_line(summary_msg)
+    tr.write_line("")
+    # print(repr(report.longrepr))
+    # if report.failed:
+    #     tr.write_line(tr._getcrashline(report))
+    #     tr.write_line("")
+    tr.write_sep("_", tr._getfailureheadline(report), red=True, bold=True)
+    tr._outrep_summary(report)
+    tr._handle_teardown_sections(report.nodeid)
+
+    # show_tb = config.option.xfail_tb
+    # style = config.option.tbstyle if show_tb else "no"
+    # print(f"{show_tb=} {style=}")
+    # if style != "no":
+    #     if style == "line":
+    #         line = _getcrashline(report)
+    #         _outrep_summary(tw, report)
+    #         self.write_line(line)
+    #     else:
+    #         msg = tr._getfailureheadline(report)
+    #         tr.write_sep("_", msg, red=True, bold=True)
+    #         tr._outrep_summary(report)
+    #         tr._handle_teardown_sections(report.nodeid)
+
+    return file.getvalue()
 
 
 ERROR_MESSAGE_CONST = {
