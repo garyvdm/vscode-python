@@ -23,8 +23,7 @@ from typing import (
 )
 
 import pytest
-from _pytest._io.terminalwriter import TerminalWriter
-from _pytest.terminal import TerminalReporter, _get_line_with_reprcrash_message
+from _pytest.config import create_terminal_writer
 
 if TYPE_CHECKING:
     from pluggy import Result
@@ -323,24 +322,32 @@ def pytest_report_teststatus(report: pytest.TestReport, config: pytest.Config):
 
 def get_report_message(report: pytest.TestReport, config: pytest.Config):
     file = StringIO()
-    tr = TerminalReporter(config, file)
+    tw = create_terminal_writer(config, file)
 
-    if report.longrepr:
-        summary_msg = ""
-        try:
-            if isinstance(report.longrepr, str):
-                summary_msg = report.longrepr
-            else:
-                # Type ignored intentionally -- possible AttributeError expected.
-                summary_msg = report.longrepr.reprcrash.message  # type: ignore[union-attr]
-        except AttributeError:
-            pass
+    # In vscode, The first line of the message for a failed test is shown in the code overlay,
+    # as well in the result panel next to the test name.  So if we can get a nice short
+    # summary, we want to make that first line.
+    try:
+        summary_msg = report.longrepr.reprcrash.message
+    except AttributeError:
+        pass
+    else:
+        tw.line(" - ".join(str(summary_msg).splitlines()))
+        tw.line("")
 
-        tr.write_line(summary_msg)
-        tr.write_line("")
+    # This writes the failure reason.
+    report.toterminal(tw)
 
-    tr._outrep_summary(report)
-    tr._handle_teardown_sections(report.nodeid)
+    # This writes the captured output.
+    showcapture = config.option.showcapture
+    if showcapture != "no":
+        for secname, content in report.sections:
+            if showcapture != "all" and showcapture not in secname:
+                continue
+            tw.sep("-", secname)
+            if content[-1:] == "\n":
+                content = content[:-1]
+            tw.line(content)
 
     return file.getvalue()
 
